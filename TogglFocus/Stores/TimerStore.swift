@@ -21,12 +21,16 @@ final class TimerStore {
         self.modelContext = modelContext
     }
 
-    func bootstrap(projectsById: [Int: TogglProject]) async {
+    func bootstrap(projectsById: [Int: TogglProject], forceRefresh: Bool = false) async {
         do {
-            if let entry = try await client.fetchCurrent() {
+            if let entry = try await client.fetchCurrent(forceRefresh: forceRefresh) {
                 self.current = entry
                 if let pid = entry.projectId { self.currentProject = projectsById[pid] }
                 attachExistingActivity(for: entry)
+            } else {
+                self.current = nil
+                self.currentProject = nil
+                await endActivityIfNeeded()
             }
         } catch {
             self.lastError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
@@ -72,15 +76,19 @@ final class TimerStore {
             )
         }
 
+        var stopFailure: String?
         do {
             _ = try await client.stopEntry(workspaceId: workspaceId, entryId: entry.id)
-            self.current = nil
-            self.currentProject = nil
-            await endActivityIfNeeded()
-            self.lastError = nil
+        } catch TogglError.http(let status, _) where status == 400 || status == 404 || status == 409 {
+            // 既に停止済みのエントリを再度停止しようとしたケース。サーバ側は最終状態が保たれている。
         } catch {
-            self.lastError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            stopFailure = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
+
+        self.current = nil
+        self.currentProject = nil
+        await endActivityIfNeeded()
+        self.lastError = stopFailure
     }
 
     private func noteFor(projectId: Int) -> String? {

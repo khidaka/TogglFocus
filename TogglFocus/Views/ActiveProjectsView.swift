@@ -26,6 +26,7 @@ enum ClientFilter: Hashable {
 struct ActiveProjectsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
     @Query private var allMetas: [ProjectMeta]
 
     @State private var projectStore = ProjectStore()
@@ -121,6 +122,13 @@ struct ActiveProjectsView: View {
                 if SharedSettings.apiToken == nil { showSettings = true }
                 await projectStore.refresh()
                 await timerStore.bootstrap(projectsById: projectsById)
+            }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                Task {
+                    await projectStore.refresh(force: true)
+                    await timerStore.bootstrap(projectsById: projectsById, forceRefresh: true)
+                }
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
