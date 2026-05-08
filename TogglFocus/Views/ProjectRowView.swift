@@ -39,9 +39,13 @@ struct ProjectRowView: View {
                         .lineLimit(1)
                 }
                 if let last = row.latestEntry?.start {
-                    Text(DurationFormatter.relative(last))
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                    HStack(spacing: 6) {
+                        Text(DurationFormatter.relative(last))
+                        Text("·").foregroundStyle(.quaternary)
+                        Text(DurationFormatter.absolute(last))
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
                 }
             }
             Spacer(minLength: 0)

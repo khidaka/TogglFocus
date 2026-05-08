@@ -8,6 +8,17 @@ enum DurationFormatter {
         return f.localizedString(for: date, relativeTo: now)
     }
 
+    private static let absoluteFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ja_JP")
+        f.dateFormat = "M/d HH:mm"
+        return f
+    }()
+
+    static func absolute(_ date: Date) -> String {
+        absoluteFormatter.string(from: date)
+    }
+
     static func hms(seconds: Int) -> String {
         let s = max(0, seconds)
         let h = s / 3600
