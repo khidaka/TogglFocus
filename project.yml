@@ -61,6 +61,7 @@ targets:
       - path: TogglFocus/Intents
       - path: TogglFocus/Models/TogglProject.swift
       - path: TogglFocus/Models/TogglTimeEntry.swift
+      - path: TogglFocus/Models/WorkspaceClient.swift
       - path: TogglFocus/Models/ProjectMeta.swift
       - path: TogglFocus/Models/AppGroup.swift
       - path: TogglFocus/Models/SharedModelContainer.swift
