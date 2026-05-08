@@ -35,6 +35,22 @@ actor TogglClient {
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
+    private struct CacheEntry<T> {
+        let value: T
+        let storedAt: Date
+        func isFresh(ttl: TimeInterval) -> Bool {
+            Date.now.timeIntervalSince(storedAt) < ttl
+        }
+    }
+
+    private static let cacheTTL: TimeInterval = 300
+
+    private var cachedMe: CacheEntry<MeResponse>?
+    private var cachedClients: CacheEntry<[WorkspaceClient]>?
+    private var cachedProjects: CacheEntry<[TogglProject]>?
+    private var cachedEntries: (since: Date, entry: CacheEntry<[TogglTimeEntry]>)?
+    private var cachedCurrent: CacheEntry<TogglTimeEntry?>?
+
     init(session: URLSession = .shared) {
         self.session = session
 
@@ -104,28 +120,72 @@ actor TogglClient {
         catch { throw TogglError.decoding(error) }
     }
 
-    func fetchMe() async throws -> MeResponse {
+    func fetchMe(forceRefresh: Bool = false) async throws -> MeResponse {
+        if !forceRefresh, let c = cachedMe, c.isFresh(ttl: Self.cacheTTL) { return c.value }
         let data = try await request("GET", "/me", query: [URLQueryItem(name: "with_related_data", value: "false")])
-        return try decode(MeResponse.self, from: data)
+        let value = try decode(MeResponse.self, from: data)
+        cachedMe = CacheEntry(value: value, storedAt: .now)
+        return value
     }
 
-    func fetchProjects() async throws -> [TogglProject] {
+    func fetchClients(forceRefresh: Bool = false) async throws -> [WorkspaceClient] {
+        if !forceRefresh, let c = cachedClients, c.isFresh(ttl: Self.cacheTTL) { return c.value }
+        let data = try await request("GET", "/me/clients")
+        let value: [WorkspaceClient]
+        if data.isEmpty || data == Data("null".utf8) {
+            value = []
+        } else {
+            value = try decode([WorkspaceClient].self, from: data)
+        }
+        cachedClients = CacheEntry(value: value, storedAt: .now)
+        return value
+    }
+
+    func fetchProjects(forceRefresh: Bool = false) async throws -> [TogglProject] {
+        if !forceRefresh, let c = cachedProjects, c.isFresh(ttl: Self.cacheTTL) { return c.value }
         let data = try await request("GET", "/me/projects",
                                      query: [URLQueryItem(name: "include_archived", value: "false")])
-        return try decode([TogglProject].self, from: data)
+        let value = try decode([TogglProject].self, from: data)
+        cachedProjects = CacheEntry(value: value, storedAt: .now)
+        return value
     }
 
-    func fetchTimeEntries(since: Date) async throws -> [TogglTimeEntry] {
+    func fetchTimeEntries(since: Date, forceRefresh: Bool = false) async throws -> [TogglTimeEntry] {
+        if !forceRefresh, let cached = cachedEntries, cached.since == since, cached.entry.isFresh(ttl: Self.cacheTTL) {
+            return cached.entry.value
+        }
         let ts = Int(since.timeIntervalSince1970)
         let data = try await request("GET", "/me/time_entries",
                                      query: [URLQueryItem(name: "since", value: String(ts))])
-        return try decode([TogglTimeEntry].self, from: data)
+        let value = try decode([TogglTimeEntry].self, from: data)
+        cachedEntries = (since: since, entry: CacheEntry(value: value, storedAt: .now))
+        return value
     }
 
-    func fetchCurrent() async throws -> TogglTimeEntry? {
+    func fetchCurrent(forceRefresh: Bool = false) async throws -> TogglTimeEntry? {
+        if !forceRefresh, let c = cachedCurrent, c.isFresh(ttl: Self.cacheTTL) { return c.value }
         let data = try await request("GET", "/me/time_entries/current")
-        if data.isEmpty || data == Data("null".utf8) { return nil }
-        return try? decode(TogglTimeEntry.self, from: data)
+        let value: TogglTimeEntry?
+        if data.isEmpty || data == Data("null".utf8) {
+            value = nil
+        } else {
+            value = try? decode(TogglTimeEntry.self, from: data)
+        }
+        cachedCurrent = CacheEntry(value: value, storedAt: .now)
+        return value
+    }
+
+    func invalidateAll() {
+        cachedMe = nil
+        cachedClients = nil
+        cachedProjects = nil
+        cachedEntries = nil
+        cachedCurrent = nil
+    }
+
+    private func invalidateEntryCaches() {
+        cachedEntries = nil
+        cachedCurrent = nil
     }
 
     func startEntry(workspaceId: Int, projectId: Int?, description: String) async throws -> TogglTimeEntry {
@@ -147,6 +207,7 @@ actor TogglClient {
         )
         let data = try await request("POST", "/workspaces/\(workspaceId)/time_entries",
                                      body: try encoder.encode(body))
+        invalidateEntryCaches()
         return try decode(TogglTimeEntry.self, from: data)
     }
 
@@ -154,11 +215,13 @@ actor TogglClient {
         struct Body: Encodable { let description: String }
         let data = try await request("PUT", "/workspaces/\(workspaceId)/time_entries/\(entryId)",
                                      body: try encoder.encode(Body(description: description)))
+        invalidateEntryCaches()
         return try decode(TogglTimeEntry.self, from: data)
     }
 
     func stopEntry(workspaceId: Int, entryId: Int) async throws -> TogglTimeEntry {
         let data = try await request("PATCH", "/workspaces/\(workspaceId)/time_entries/\(entryId)/stop")
+        invalidateEntryCaches()
         return try decode(TogglTimeEntry.self, from: data)
     }
 }

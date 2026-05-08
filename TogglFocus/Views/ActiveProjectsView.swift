@@ -43,7 +43,7 @@ struct ActiveProjectsView: View {
                     )
                 }
             }
-            .refreshable { await projectStore.refresh() }
+            .refreshable { await projectStore.refresh(force: true) }
             .task {
                 if SharedSettings.apiToken == nil { showSettings = true }
                 await projectStore.refresh()

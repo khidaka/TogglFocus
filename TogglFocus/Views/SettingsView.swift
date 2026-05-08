@@ -15,7 +15,10 @@ struct SettingsView: View {
                         .autocorrectionDisabled()
                     Button {
                         SharedSettings.apiToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
-                        Task { await test() }
+                        Task {
+                            await TogglClient.shared.invalidateAll()
+                            await test()
+                        }
                     } label: {
                         if testing { ProgressView() } else { Text("保存して接続テスト") }
                     }
