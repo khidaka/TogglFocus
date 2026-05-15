@@ -188,7 +188,7 @@ actor TogglClient {
         cachedCurrent = nil
     }
 
-    func startEntry(workspaceId: Int, projectId: Int?, description: String) async throws -> TogglTimeEntry {
+    func startEntry(workspaceId: Int, projectId: Int?, description: String, tags: [String] = []) async throws -> TogglTimeEntry {
         struct Body: Encodable {
             let description: String
             let project_id: Int?
@@ -196,6 +196,7 @@ actor TogglClient {
             let start: Date
             let duration: Int
             let created_with: String
+            let tags: [String]?
         }
         let body = Body(
             description: description,
@@ -203,7 +204,8 @@ actor TogglClient {
             workspace_id: workspaceId,
             start: .now,
             duration: -1,
-            created_with: "TogglFocus"
+            created_with: "TogglFocus",
+            tags: tags.isEmpty ? nil : tags
         )
         let data = try await request("POST", "/workspaces/\(workspaceId)/time_entries",
                                      body: try encoder.encode(body))

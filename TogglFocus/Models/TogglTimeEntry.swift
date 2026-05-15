@@ -8,6 +8,7 @@ struct TogglTimeEntry: Codable, Identifiable, Hashable, Sendable {
     let start: Date
     let stop: Date?
     let duration: Int
+    let tags: [String]?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -17,6 +18,7 @@ struct TogglTimeEntry: Codable, Identifiable, Hashable, Sendable {
         case start
         case stop
         case duration
+        case tags
     }
 
     var isRunning: Bool { duration < 0 }

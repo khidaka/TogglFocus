@@ -37,7 +37,7 @@ final class TimerStore {
         }
     }
 
-    func start(project: TogglProject, description: String) async {
+    func start(project: TogglProject, description: String, tags: [String] = []) async {
         guard let workspaceId = SharedSettings.workspaceId ?? Optional(project.workspaceId) else {
             self.lastError = "Workspace ID 不明"
             return
@@ -50,7 +50,8 @@ final class TimerStore {
             let entry = try await client.startEntry(
                 workspaceId: workspaceId,
                 projectId: project.id,
-                description: description
+                description: description,
+                tags: tags
             )
             self.current = entry
             self.currentProject = project

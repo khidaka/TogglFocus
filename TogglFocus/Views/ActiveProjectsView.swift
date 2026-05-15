@@ -177,8 +177,9 @@ struct ActiveProjectsView: View {
                 .onTapGesture {
                     let m = metaByProject[row.project.id]
                     let desc = (m?.note?.isEmpty == false ? m?.note : row.latestEntry?.description) ?? ""
+                    let tags = row.latestEntry?.tags ?? []
                     Task {
-                        await timerStore.start(project: row.project, description: desc)
+                        await timerStore.start(project: row.project, description: desc, tags: tags)
                         await projectStore.refresh()
                     }
                 }

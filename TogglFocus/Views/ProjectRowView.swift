@@ -38,6 +38,12 @@ struct ProjectRowView: View {
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
+                if let tags = row.latestEntry?.tags, !tags.isEmpty {
+                    Text(tags.map { "#\($0)" }.joined(separator: " "))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
                 if let last = row.latestEntry?.start {
                     HStack(spacing: 6) {
                         Text(DurationFormatter.relative(last))

@@ -2,6 +2,13 @@
 
 Toggl Track をラップする iPhone アプリ。**履歴ではなく実行に特化した薄いラッパー** として、アクティブプロジェクトの最新ログを一覧してタップ一発でタイマーを再開する用途のもの。レポート / ゴール / 集計機能は意図的に持たない。
 
+**機能**:
+- アクティブプロジェクト一覧 (最新エントリの description / 相対時刻 + 絶対日時 / タグ)
+- 行タップでタイマー再開 (description, **タグ** を最新エントリから引き継いで POST)
+- ローカルメタ (URL + ノート) を SwiftData に保持。停止時にノートを Toggl description へ反映
+- クライアント単位でリスト絞り込み(`@AppStorage("clientFilterRaw")` で永続化)
+- Live Activity / Dynamic Island 対応、Stop は App Intent
+
 公開リポジトリ: https://github.com/khidaka/TogglFocus
 
 ## 設計上の重要事項
@@ -32,7 +39,7 @@ TogglFocusWidget/                  # Widget Extension ターゲット
 └── RunningEntryLiveActivity.swift # ロック画面 + Dynamic Island
 ```
 
-`Intents/` と `LiveActivity/` 配下、および `Models/` のうち `TogglProject` `TogglTimeEntry` `ProjectMeta` `AppGroup` `SharedModelContainer` は `project.yml` で **両ターゲットのソース** として登録されている。共有 SwiftData (App Group コンテナ) を Widget 側からも開くため。
+`Intents/` と `LiveActivity/` 配下、および `Models/` のうち `TogglProject` `TogglTimeEntry` `WorkspaceClient` `ProjectMeta` `AppGroup` `SharedModelContainer` は `project.yml` で **両ターゲットのソース** として登録されている。共有 SwiftData (App Group コンテナ) を Widget 側からも開くため。
 
 ## ビルド / 実行
 
@@ -55,6 +62,10 @@ Xcode で `TogglFocus` / `TogglFocusWidget` 両ターゲットの Signing & Capa
 - **Activity 参照を `@MainActor` プロパティに保持すると Sendable 越境警告**。`activityId: String?` だけ保持して `Activity.activities` から都度引き直す。
 - **`ISO8601DateFormatter` は非 Sendable**。`Date.ISO8601FormatStyle` (値型 + Sendable) を使う。
 - **アプリアイコンは `scripts/generate_icon.swift` で生成**(CoreGraphics)。トーンは「JournalToObsidian」アプリと揃え、黒地 × 白の単一シンボル(円 + ▶)に統一。色アクセントは入れない。
+- **`TogglClient` は actor 内 TTL キャッシュ (5 分) を持つ**。`ProjectStore` の `refresh(force:)` や `fetchCurrent(forceRefresh:)` に `true` を渡すとキャッシュを無視して再取得。設定変更後など全キャッシュを捨てたい場合は `TogglClient.shared.invalidateAll()` を呼ぶ (`SettingsView` の「接続テスト」前に実行している)。
+- **タグはタイマー再開時に引き継ぐ**。`TogglTimeEntry.tags: [String]?` を `startEntry(tags:)` へ渡し、空配列の場合は POST body から `tags` キーを省く (null/空配列の扱いが Toggl 側で異なるため)。
+- **クライアント絞り込みは `@AppStorage("clientFilterRaw") Int`** で永続化。`ClientFilter` enum を `rawValue: Int` で `AppStorage` と相互変換。未分類プロジェクト(clientId == nil)は `ClientFilter.unclassified` (rawValue: -2) で絞り込める。
+- **`WorkspaceClient` は両ターゲット共有ソース**。`project.yml` の Widget sources に追加しないとビルドエラー。
 
 ## 計画ファイル
 
